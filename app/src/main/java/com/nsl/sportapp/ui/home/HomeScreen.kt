@@ -39,7 +39,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -56,7 +55,6 @@ import com.nsl.sportapp.data.repository.WorkoutRepository
 import com.nsl.sportapp.datalayer.SyncHelper
 import com.nsl.sportapp.ui.history.HistoryViewModel
 import com.nsl.sportapp.ui.workout.WorkoutViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -77,24 +75,13 @@ fun HomeScreen(
     var watchConnected by remember { mutableStateOf(false) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    // Poll connection status every 5 seconds for accurate real-time state
+    // Check connection status once when screen opens
     LaunchedEffect(Unit) {
-        while (true) {
-            watchConnected = try {
-                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-                nodes.isNotEmpty()
-            } catch (e: Exception) {
-                false
-            }
-            delay(5_000L)
-        }
-    }
-
-    // Auto-push programs to watch every 5 seconds when connected
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(5_000L)
-            SyncHelper.syncProgramsToWatch(context)
+        watchConnected = try {
+            val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+            nodes.isNotEmpty()
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -153,6 +140,10 @@ fun HomeScreen(
                     onClick = {
                         scope.launch {
                             isSyncing = true
+                            watchConnected = try {
+                                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+                                nodes.isNotEmpty()
+                            } catch (e: Exception) { false }
                             SyncHelper.syncProgramsToWatch(context)
                             isSyncing = false
                         }
