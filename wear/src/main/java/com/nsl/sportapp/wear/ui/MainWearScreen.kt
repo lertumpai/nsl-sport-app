@@ -37,6 +37,7 @@ import androidx.wear.compose.material.TimeText
 import com.google.android.gms.wearable.Wearable
 import com.nsl.sportapp.wear.datalayer.WearSyncHelper
 import com.nsl.sportapp.wear.service.WearWorkoutService
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -50,17 +51,21 @@ fun MainWearScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    // Independent connection check — polls every 5 s so it stays accurate
+    // even when WearWorkoutService is not running (e.g. after workout ends).
     var phoneConnected by remember { mutableStateOf(false) }
     var isSyncing by remember { mutableStateOf(false) }
     var lastSyncCount by remember { mutableStateOf(-1) }
 
-    // Check connection status once when screen opens
     LaunchedEffect(Unit) {
-        phoneConnected = try {
-            val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-            nodes.isNotEmpty()
-        } catch (e: Exception) {
-            false
+        while (true) {
+            phoneConnected = try {
+                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+                nodes.isNotEmpty()
+            } catch (e: Exception) {
+                false
+            }
+            delay(5_000L)
         }
     }
 
@@ -149,10 +154,6 @@ fun MainWearScreen(
                     onClick = {
                         scope.launch {
                             isSyncing = true
-                            phoneConnected = try {
-                                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-                                nodes.isNotEmpty()
-                            } catch (e: Exception) { false }
                             lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
                             isSyncing = false
                         }
