@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -40,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,9 +53,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.gms.wearable.Wearable
 import com.nsl.sportapp.data.repository.WorkoutRepository
+import com.nsl.sportapp.datalayer.SyncHelper
 import com.nsl.sportapp.ui.history.HistoryViewModel
 import com.nsl.sportapp.ui.workout.WorkoutViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,7 +73,10 @@ fun HomeScreen(
     val workouts by historyViewModel.workouts.collectAsState()
     val workoutState by workoutViewModel.workoutState.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var watchConnected by remember { mutableStateOf(false) }
+    var isSyncing by remember { mutableStateOf(false) }
+
     // Poll connection status every 5 seconds for accurate real-time state
     LaunchedEffect(Unit) {
         while (true) {
@@ -80,6 +87,14 @@ fun HomeScreen(
                 false
             }
             delay(5_000L)
+        }
+    }
+
+    // Auto-push programs to watch every 5 seconds when connected
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5_000L)
+            SyncHelper.syncProgramsToWatch(context)
         }
     }
 
@@ -112,25 +127,45 @@ fun HomeScreen(
         ) {
             Spacer(Modifier.height(12.dp))
 
-            // Watch connection status
+            // Watch connection status + manual sync button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(
-                            if (watchConnected) Color(0xFF4CAF50) else Color(0xFF9E9E9E),
-                            CircleShape
-                        )
-                )
-                Spacer(Modifier.size(6.dp))
-                Text(
-                    if (watchConnected) "นาฬิกาเชื่อมต่อแล้ว" else "ไม่ได้เชื่อมต่อนาฬิกา",
-                    fontSize = 13.sp,
-                    color = if (watchConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(
+                                if (watchConnected) Color(0xFF4CAF50) else Color(0xFF9E9E9E),
+                                CircleShape
+                            )
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        if (watchConnected) "นาฬิกาเชื่อมต่อแล้ว" else "ไม่ได้เชื่อมต่อนาฬิกา",
+                        fontSize = 13.sp,
+                        color = if (watchConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            isSyncing = true
+                            SyncHelper.syncProgramsToWatch(context)
+                            isSyncing = false
+                        }
+                    },
+                    enabled = !isSyncing
+                ) {
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = "ซิงค์โปรแกรมไปนาฬิกา",
+                        tint = if (watchConnected) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))

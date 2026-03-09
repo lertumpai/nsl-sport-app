@@ -16,7 +16,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,12 +33,17 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.nsl.sportapp.wear.data.db.entity.WearWorkoutEntity
 import com.nsl.sportapp.wear.data.repository.WearWorkoutRepository
+import com.nsl.sportapp.wear.datalayer.WearSyncHelper
+import kotlinx.coroutines.launch
 
 @Composable
 fun WearHistoryScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { WearWorkoutRepository(context) }
     val workouts by repository.allWorkouts.collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    var isSyncing by remember { mutableStateOf(false) }
+    var lastSyncCount by remember { mutableStateOf(-1) }
 
     Box(
         modifier = Modifier
@@ -43,7 +51,7 @@ fun WearHistoryScreen(onBack: () -> Unit) {
             .background(MaterialTheme.colors.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+            // Header row: back + title + sync button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -59,8 +67,34 @@ fun WearHistoryScreen(onBack: () -> Unit) {
                     "ประวัติการวิ่ง",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colors.onBackground
+                    color = MaterialTheme.colors.onBackground,
+                    modifier = Modifier.weight(1f)
                 )
+                // Sync button — only syncs workouts not yet sent to phone
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSyncing = true
+                            lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
+                            isSyncing = false
+                        }
+                    },
+                    enabled = !isSyncing,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF4CAF50)
+                    ),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(
+                        when {
+                            isSyncing -> "..."
+                            lastSyncCount == 0 -> "✓"
+                            lastSyncCount > 0 -> "✓$lastSyncCount"
+                            else -> "⇪"
+                        },
+                        fontSize = 12.sp
+                    )
+                }
             }
 
             if (workouts.isEmpty()) {
@@ -107,7 +141,10 @@ private fun WearWorkoutCard(workout: WearWorkoutEntity) {
         if (workout.avgHeartRate > 0) {
             Text("❤ ${workout.avgHeartRate} bpm", fontSize = 10.sp, color = Color.Red)
         }
-        if (!workout.synced) {
+        // Show sync status — already-synced items won't be re-sent
+        if (workout.synced) {
+            Text("✓ ซิงค์แล้ว", fontSize = 9.sp, color = Color(0xFF4CAF50))
+        } else {
             Text("⏳ รอซิงค์", fontSize = 9.sp, color = Color(0xFFFF9800))
         }
     }
