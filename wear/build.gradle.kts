@@ -54,6 +54,7 @@ dependencies {
 
     // Health Services for heart rate
     implementation(libs.health.services.client)
+    implementation(libs.concurrent.futures.ktx)
 
     // Wearable Data Layer
     implementation(libs.play.services.wearable)

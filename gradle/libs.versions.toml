@@ -32,6 +32,7 @@ androidx-wear-compose-material = { group = "androidx.wear.compose", name = "comp
 androidx-wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearCompose" }
 androidx-wear-compose-navigation = { group = "androidx.wear.compose", name = "compose-navigation", version.ref = "wearCompose" }
 health-services-client = { group = "androidx.health", name = "health-services-client", version.ref = "healthServices" }
+concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version = "1.1.0" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

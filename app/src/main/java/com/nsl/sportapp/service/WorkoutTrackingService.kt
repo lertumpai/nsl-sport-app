@@ -58,6 +58,12 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
         const val PATH_INTERVAL_PHASE = "/workout/interval_phase"
         const val PATH_STATS = "/workout/stats"
 
+        const val ACTION_START = "com.nsl.sportapp.ACTION_START"
+        const val ACTION_STOP = "com.nsl.sportapp.ACTION_STOP"
+        const val ACTION_PAUSE = "com.nsl.sportapp.ACTION_PAUSE"
+        const val ACTION_RESUME = "com.nsl.sportapp.ACTION_RESUME"
+        const val EXTRA_INTERVAL_CONFIG = "extra_interval_config"
+
         private val _state = MutableStateFlow(WorkoutState())
         val state: StateFlow<WorkoutState> = _state.asStateFlow()
 
@@ -496,11 +502,4 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
         paceAlertJob?.cancel()
     }
 
-    companion object {
-        const val ACTION_START = "com.nsl.sportapp.ACTION_START"
-        const val ACTION_STOP = "com.nsl.sportapp.ACTION_STOP"
-        const val ACTION_PAUSE = "com.nsl.sportapp.ACTION_PAUSE"
-        const val ACTION_RESUME = "com.nsl.sportapp.ACTION_RESUME"
-        const val EXTRA_INTERVAL_CONFIG = "extra_interval_config"
-    }
 }

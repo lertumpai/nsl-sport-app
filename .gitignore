@@ -1,10 +1,27 @@
+# Built application files (keep APKs)
+*.ap_
+*.dex
+
+# Build directories (but keep APK output)
+/build/
+app/build/
+wear/build/
+!app/build/outputs/apk/**/*.apk
+!wear/build/outputs/apk/**/*.apk
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+gradlew
+gradlew.bat
+
+# Local configuration
+local.properties
+
+# IDE
 *.iml
-.gradle
-/local.properties
-/.idea
+.idea/
 .DS_Store
-/build
 /captures
 .externalNativeBuild
 .cxx
-local.properties

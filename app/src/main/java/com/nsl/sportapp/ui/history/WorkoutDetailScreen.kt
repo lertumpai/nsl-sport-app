@@ -111,25 +111,25 @@ fun WorkoutDetailScreen(
             }
 
             // Interval config
-            w.intervalConfigJson?.let { json ->
-                try {
-                    val config = Json.decodeFromString<IntervalConfig>(json)
-                    StatGroupCard(title = "การตั้งค่า Interval") {
-                        StatRow("โหมด", if (config.mode.name == "ACTIVITY_BASED") "Activity List" else "ควบคุม Pace")
-                        if (config.activities.isNotEmpty()) {
-                            config.activities.forEachIndexed { i, act ->
-                                StatRow("  ${i + 1}. ${act.type.label}", "${act.distanceMeters} เมตร")
-                            }
-                            StatRow("จำนวนรอบ", "${config.repetitions} รอบ")
+            val intervalConfig = w.intervalConfigJson?.let { json ->
+                runCatching { Json.decodeFromString<IntervalConfig>(json) }.getOrNull()
+            }
+            intervalConfig?.let { config ->
+                StatGroupCard(title = "การตั้งค่า Interval") {
+                    StatRow("โหมด", if (config.mode.name == "ACTIVITY_BASED") "Activity List" else "ควบคุม Pace")
+                    if (config.activities.isNotEmpty()) {
+                        config.activities.forEachIndexed { i, act ->
+                            StatRow("  ${i + 1}. ${act.type.label}", "${act.distanceMeters} เมตร")
                         }
-                        if (config.paceAlertEnabled) {
-                            StatRow(
-                                "ช่วง Pace",
-                                "${IntervalConfig.formatPace(config.minPaceSecsPerKm)} – ${IntervalConfig.formatPace(config.maxPaceSecsPerKm)}"
-                            )
-                        }
+                        StatRow("จำนวนรอบ", "${config.repetitions} รอบ")
                     }
-                } catch (e: Exception) { /* skip */ }
+                    if (config.paceAlertEnabled) {
+                        StatRow(
+                            "ช่วง Pace",
+                            "${IntervalConfig.formatPace(config.minPaceSecsPerKm)} – ${IntervalConfig.formatPace(config.maxPaceSecsPerKm)}"
+                        )
+                    }
+                }
             }
 
             // GPS summary
