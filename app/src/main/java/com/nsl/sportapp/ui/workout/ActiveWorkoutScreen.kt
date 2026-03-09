@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nsl.sportapp.data.model.ActivityType
+import com.nsl.sportapp.data.model.IntervalConfig
 import com.nsl.sportapp.data.model.IntervalMode
 
 @Composable
