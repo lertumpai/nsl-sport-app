@@ -112,8 +112,8 @@ fun WorkoutDetailScreen(
 
             // Interval config
             w.intervalConfigJson?.let { json ->
-                try {
-                    val config = Json.decodeFromString<IntervalConfig>(json)
+                val config = runCatching { Json.decodeFromString<IntervalConfig>(json) }.getOrNull()
+                if (config != null) {
                     StatGroupCard(title = "การตั้งค่า Interval") {
                         StatRow("โหมด", if (config.mode.name == "ACTIVITY_BASED") "Activity List" else "ควบคุม Pace")
                         if (config.activities.isNotEmpty()) {
@@ -129,7 +129,7 @@ fun WorkoutDetailScreen(
                             )
                         }
                     }
-                } catch (e: Exception) { /* skip */ }
+                }
             }
 
             // GPS summary

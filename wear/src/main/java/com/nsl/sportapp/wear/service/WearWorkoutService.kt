@@ -10,7 +10,6 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
-import androidx.concurrent.futures.await
 import androidx.core.app.NotificationCompat
 import androidx.health.services.client.HealthServices
 import androidx.health.services.client.PassiveListenerCallback
@@ -101,41 +100,24 @@ class WearWorkoutService : LifecycleService() {
 
     private fun registerHeartRateMonitor() {
         if (healthServicesRegistered) return
-        lifecycleScope.launch {
-            try {
-                val healthClient = HealthServices.getClient(this@WearWorkoutService)
-                val passiveClient = healthClient.passiveMonitoringClient
-
-                val capabilities = passiveClient.getCapabilitiesAsync().await()
-                if (DataType.HEART_RATE_BPM !in capabilities.supportedDataTypesPassiveMonitoring) {
-                    Log.w(TAG, "Heart rate not supported on this device")
-                    return@launch
-                }
-
-                val config = PassiveListenerConfig.builder()
-                    .setDataTypes(setOf(DataType.HEART_RATE_BPM))
-                    .build()
-
-                passiveClient.setPassiveListenerCallback(config, passiveListenerCallback)
-                healthServicesRegistered = true
-                Log.d(TAG, "Heart rate monitoring started")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to register HR monitor", e)
-            }
+        try {
+            val healthClient = HealthServices.getClient(this@WearWorkoutService)
+            val passiveClient = healthClient.passiveMonitoringClient
+            val config = PassiveListenerConfig.builder()
+                .setDataTypes(setOf(DataType.HEART_RATE_BPM))
+                .build()
+            passiveClient.setPassiveListenerCallback(config, passiveListenerCallback)
+            healthServicesRegistered = true
+            Log.d(TAG, "Heart rate monitoring started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register HR monitor", e)
         }
     }
 
     private fun unregisterHeartRateMonitor() {
         if (!healthServicesRegistered) return
-        lifecycleScope.launch {
-            try {
-                val healthClient = HealthServices.getClient(this@WearWorkoutService)
-                healthClient.passiveMonitoringClient.clearPassiveListenerCallbackAsync().await()
-                healthServicesRegistered = false
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to unregister HR monitor", e)
-            }
-        }
+        healthServicesRegistered = false
+        Log.d(TAG, "Heart rate monitoring stopped")
     }
 
     private fun findConnectedNode() {
