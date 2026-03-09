@@ -1,6 +1,7 @@
 package com.nsl.sportapp.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.List
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,19 +34,27 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.wearable.Wearable
 import com.nsl.sportapp.data.repository.WorkoutRepository
 import com.nsl.sportapp.ui.history.HistoryViewModel
 import com.nsl.sportapp.ui.workout.WorkoutViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +63,25 @@ fun HomeScreen(
     workoutViewModel: WorkoutViewModel,
     onStartFreeRun: () -> Unit,
     onOpenIntervalSetup: () -> Unit,
-    onOpenHistory: () -> Unit
+    onOpenHistory: () -> Unit,
+    onOpenPrograms: () -> Unit = {}
 ) {
     val workouts by historyViewModel.workouts.collectAsState()
     val workoutState by workoutViewModel.workoutState.collectAsState()
+    val context = LocalContext.current
+    var watchConnected by remember { mutableStateOf(false) }
+    // Poll connection status every 5 seconds for accurate real-time state
+    LaunchedEffect(Unit) {
+        while (true) {
+            watchConnected = try {
+                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+                nodes.isNotEmpty()
+            } catch (e: Exception) {
+                false
+            }
+            delay(5_000L)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -83,7 +110,30 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
+
+            // Watch connection status
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(
+                            if (watchConnected) Color(0xFF4CAF50) else Color(0xFF9E9E9E),
+                            CircleShape
+                        )
+                )
+                Spacer(Modifier.size(6.dp))
+                Text(
+                    if (watchConnected) "นาฬิกาเชื่อมต่อแล้ว" else "ไม่ได้เชื่อมต่อนาฬิกา",
+                    fontSize = 13.sp,
+                    color = if (watchConnected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
 
             // Active workout indicator
             if (workoutState.isRunning) {
@@ -125,6 +175,19 @@ fun HomeScreen(
             ) {
                 Icon(Icons.Default.FitnessCenter, contentDescription = null)
                 Text("  ตั้งค่า Interval", fontSize = 18.sp)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            FilledTonalButton(
+                onClick = onOpenPrograms,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.List, contentDescription = null)
+                Text("  โปรแกรมของฉัน", fontSize = 18.sp)
             }
 
             Spacer(Modifier.height(32.dp))

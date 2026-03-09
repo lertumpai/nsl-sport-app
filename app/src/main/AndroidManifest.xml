@@ -37,7 +37,7 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- Receives workout data synced from WearOS watch -->
+        <!-- Receives workout data and programs synced from WearOS watch -->
         <service
             android:name=".datalayer.PhoneDataLayerListener"
             android:enabled="true"
@@ -47,6 +47,12 @@
                 <data
                     android:host="*"
                     android:pathPrefix="/sync"
+                    android:scheme="wear" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
+                <data
+                    android:host="*"
                     android:scheme="wear" />
             </intent-filter>
         </service>

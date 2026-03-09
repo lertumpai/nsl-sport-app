@@ -102,6 +102,8 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
     private var timerJob: Job? = null
     private var paceAlertJob: Job? = null
     private var connectedNodeId: String? = null
+    // Track last real movement so we can zero pace when stationary
+    private var lastMovementTime: Long = 0L
 
     // Pace rolling window (30 seconds)
     private val locationHistory = ArrayDeque<Pair<Long, Float>>(30) // (timestamp, distanceMeters)
@@ -153,6 +155,7 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
         currentRepetition = 1
         totalActivitiesCompleted = 0
         startTime = System.currentTimeMillis()
+        lastMovementTime = startTime
 
         _state.value = WorkoutState(
             isRunning = true,
@@ -222,8 +225,14 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
         timerJob = lifecycleScope.launch {
             while (true) {
                 delay(1000)
-                val elapsed = baseElapsed + (System.currentTimeMillis() - startTs)
-                _state.value = _state.value.copy(elapsedMillis = elapsed)
+                val now = System.currentTimeMillis()
+                val elapsed = baseElapsed + (now - startTs)
+                // Zero pace when no movement for more than 5 seconds
+                val isStationary = lastMovementTime > 0L && (now - lastMovementTime) > 5_000L
+                _state.value = _state.value.copy(
+                    elapsedMillis = elapsed,
+                    currentPaceSecsPerKm = if (isStationary) 0f else _state.value.currentPaceSecsPerKm
+                )
                 updateNotification()
             }
         }
@@ -261,6 +270,7 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
 
             // Rolling pace (last 30 seconds)
             val now = System.currentTimeMillis()
+            lastMovementTime = now  // record actual movement
             locationHistory.addLast(now to newTotal)
             while (locationHistory.size > 1 &&
                 now - locationHistory.first().first > 30_000
@@ -409,8 +419,7 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
     // ── Save to DB ───────────────────────────────────────────────────────
 
     private suspend fun saveWorkoutToDb(state: WorkoutState) {
-        if (state.distanceMeters < 10f) return  // ignore very short workouts
-
+        // Always save — even 0 m workouts (e.g. stationary HR sessions)
         val config = intervalConfig
         val configJson = config?.let { Json.encodeToString(it) }
 

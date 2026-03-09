@@ -138,9 +138,14 @@ fun ActiveWorkoutScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Interval section (only if interval mode)
+                // Interval section
                 if (state.isIntervalMode) {
-                    IntervalStatusCard(state = state, phaseColor = phaseColor)
+                    val config = state.intervalConfig
+                    if (config != null && config.mode == IntervalMode.ACTIVITY_BASED) {
+                        IntervalStatusCard(state = state, phaseColor = phaseColor)
+                    } else if (config != null && config.mode == IntervalMode.PACE_CONTROLLED) {
+                        PaceControlCard(config = config, currentPace = state.currentPaceSecsPerKm)
+                    }
                     Spacer(Modifier.height(16.dp))
                 }
 
@@ -280,6 +285,47 @@ private fun IntervalStatusCard(
                     "เป้า Pace: ${IntervalConfig.formatPace(config.minPaceSecsPerKm)}–${IntervalConfig.formatPace(config.maxPaceSecsPerKm)}",
                     fontSize = 12.sp,
                     color = rangeColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaceControlCard(config: IntervalConfig, currentPace: Float) {
+    val currentPaceInt = currentPace.toInt()
+    val inRange = currentPaceInt == 0 || currentPaceInt in config.minPaceSecsPerKm..config.maxPaceSecsPerKm
+    val cardColor = if (inRange) Color(0xFF4CAF50) else Color.Red
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor.copy(alpha = 0.12f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "ควบคุม Pace",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "เป้าหมาย: ${IntervalConfig.formatPace(config.minPaceSecsPerKm)}–${IntervalConfig.formatPace(config.maxPaceSecsPerKm)} /km",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (inRange || currentPaceInt == 0) "✓ ในช่วง" else "⚠ ออกนอกช่วง",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = cardColor
                 )
             }
         }

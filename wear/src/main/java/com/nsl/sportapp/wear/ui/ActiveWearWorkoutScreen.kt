@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,125 +38,201 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
     val state by WearWorkoutService.state.collectAsState()
 
     val paceColor = when {
-        !state.paceAlertEnabled || state.currentPaceSecsPerKm <= 0 -> MaterialTheme.colors.onBackground
+        !state.paceAlertEnabled || state.currentPaceSecsPerKm <= 0 -> Color.White
         state.paceInRange -> Color(0xFF4CAF50)
-        else -> Color.Red
+        else -> Color(0xFFFF5252)
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colors.background),
-        contentAlignment = Alignment.Center
+            .background(MaterialTheme.colors.background)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        // ── Top: Timer + GPS indicator ───────────────────────────────────
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Elapsed time + GPS dot
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    formatDuration(state.elapsedMillis),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colors.onBackground
+            Text(
+                formatDuration(state.elapsedMillis),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            if (state.gpsActive) {
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(Color(0xFF4CAF50), CircleShape)
                 )
-                if (state.gpsActive) {
-                    Spacer(Modifier.size(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(Color(0xFF4CAF50), CircleShape)
+            }
+        }
+
+        // ── Middle: HR  |  Distance  |  Pace ────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Heart Rate
+            WearStatBlock(
+                value = if (state.heartRate > 0) "${state.heartRate}" else "--",
+                label = "❤ bpm",
+                valueColor = Color(0xFFFF5252),
+                labelColor = Color(0xFFFF5252).copy(alpha = 0.7f)
+            )
+
+            // Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(36.dp)
+                    .background(Color.White.copy(alpha = 0.2f))
+            )
+
+            // Distance
+            WearStatBlock(
+                value = formatDistance(state.distanceMeters),
+                label = "ระยะทาง",
+                valueColor = Color.White
+            )
+
+            // Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(36.dp)
+                    .background(Color.White.copy(alpha = 0.2f))
+            )
+
+            // Pace
+            WearStatBlock(
+                value = formatPace(state.currentPaceSecsPerKm),
+                label = "Pace/km",
+                valueColor = paceColor,
+                labelColor = paceColor.copy(alpha = 0.7f)
+            )
+        }
+
+        // ── Pace alert range ─────────────────────────────────────────────
+        if (state.paceAlertEnabled) {
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = paceColor.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp)
                     )
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Heart rate
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("❤ ", fontSize = 12.sp, color = Color.Red)
-                Text(
-                    text = if (state.heartRate > 0) "${state.heartRate}" else "--",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Red
-                )
-                Text(" bpm", fontSize = 10.sp, color = Color.Red)
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Distance + Pace
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
             ) {
-                WearStatColumn(formatDistance(state.distanceMeters), "ระยะทาง", MaterialTheme.colors.onBackground)
-                WearStatColumn(formatPace(state.currentPaceSecsPerKm), "Pace/km", paceColor)
-            }
-
-            // Pace alert range hint
-            if (state.paceAlertEnabled) {
-                Spacer(Modifier.height(2.dp))
                 Text(
-                    "${formatPace(state.minPaceSecsPerKm.toFloat())}–${formatPace(state.maxPaceSecsPerKm.toFloat())}",
-                    fontSize = 9.sp,
-                    color = paceColor.copy(alpha = 0.8f)
+                    text = "${formatPace(state.minPaceSecsPerKm.toFloat())} – ${formatPace(state.maxPaceSecsPerKm.toFloat())}",
+                    fontSize = 10.sp,
+                    color = paceColor,
+                    textAlign = TextAlign.Center
                 )
             }
+        } else {
+            Spacer(Modifier.height(4.dp))
+        }
 
-            Spacer(Modifier.height(8.dp))
+        // ── Interval info ────────────────────────────────────────────────
+        if (state.intervalConfig != null && state.currentActivityLabel.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFFFFEB3B).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    "${state.currentActivityLabel}  รอบ ${state.currentRepetition}/${state.intervalConfig!!.repetitions}",
+                    fontSize = 10.sp,
+                    color = Color(0xFFFFEB3B),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else if (state.currentActivityLabel == "เสร็จแล้ว!") {
+            Text(
+                "เสร็จแล้ว! 🎉",
+                fontSize = 11.sp,
+                color = Color(0xFF4CAF50),
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Spacer(Modifier.height(4.dp))
+        }
 
-            // Stop / Pause row
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Pause/Resume
-                Button(
-                    onClick = {
-                        val action = if (state.isPaused) WearWorkoutService.ACTION_RESUME
-                                    else WearWorkoutService.ACTION_PAUSE
-                        context.startService(Intent(context, WearWorkoutService::class.java).apply { this.action = action })
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2196F3)),
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Text(if (state.isPaused) "▶" else "⏸", fontSize = 12.sp)
-                }
+        // ── Bottom: Pause / Stop buttons ─────────────────────────────────
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = {
+                    val action = if (state.isPaused) WearWorkoutService.ACTION_RESUME
+                               else WearWorkoutService.ACTION_PAUSE
+                    context.startService(
+                        Intent(context, WearWorkoutService::class.java).apply { this.action = action }
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2196F3)),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Text(if (state.isPaused) "▶" else "⏸", fontSize = 14.sp)
+            }
 
-                // Stop
-                Button(
-                    onClick = {
-                        context.startService(Intent(context, WearWorkoutService::class.java).apply {
-                            action = WearWorkoutService.ACTION_STOP
-                        })
-                        onWorkoutStopped()
-                    },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Red),
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Text("■", fontSize = 12.sp)
-                }
+            Button(
+                onClick = {
+                    context.startService(Intent(context, WearWorkoutService::class.java).apply {
+                        action = WearWorkoutService.ACTION_STOP
+                    })
+                    onWorkoutStopped()
+                },
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFFF5252)),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Text("■", fontSize = 14.sp)
             }
         }
     }
 }
 
 @Composable
-private fun WearStatColumn(value: String, label: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(label, fontSize = 9.sp, color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f), textAlign = TextAlign.Center)
+private fun WearStatBlock(
+    value: String,
+    label: String,
+    valueColor: Color = Color.White,
+    labelColor: Color = Color.White.copy(alpha = 0.6f)
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 2.dp)
+    ) {
+        Text(
+            value,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            label,
+            fontSize = 8.sp,
+            color = labelColor,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
 internal fun formatDuration(millis: Long): String {
     val secs = millis / 1000
     val h = secs / 3600; val m = (secs % 3600) / 60; val s = secs % 60
-    return if (h > 0) "$h:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}"
-    else "${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}"
+    return if (h > 0) "$h:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
+    else "${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
 }
 
 internal fun formatDistance(meters: Float): String =

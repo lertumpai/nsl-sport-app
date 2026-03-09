@@ -2,26 +2,32 @@ package com.nsl.sportapp.datalayer
 
 import android.util.Log
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.nsl.sportapp.data.db.entity.WorkoutEntity
 import com.nsl.sportapp.data.db.entity.WorkoutSegmentEntity
+import com.nsl.sportapp.data.repository.TrainingProgramRepository
 import com.nsl.sportapp.data.repository.WorkoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
 /**
- * Listens for workout data synced from the WearOS watch.
- * When a workout is received via /sync/workout, it is saved to the phone's Room DB.
+ * Listens for data synced from the WearOS watch.
+ * - /sync/workout : saves workout to phone DB
+ * Program sync is one-way (phone → watch only).
+ * When watch connects, phone pushes its programs to the watch.
  */
 class PhoneDataLayerListener : WearableListenerService() {
 
     companion object {
         private const val TAG = "PhoneDataLayer"
         const val PATH_SYNC_WORKOUT = "/sync/workout"
+        const val PATH_SYNC_PROGRAMS_TO_WATCH = "/sync/programs"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -33,6 +39,33 @@ class PhoneDataLayerListener : WearableListenerService() {
                 Log.d(TAG, "Received workout sync from watch")
                 scope.launch { saveWatchWorkout(json) }
             }
+        }
+    }
+
+    /** Called when a node (watch) connects — push phone programs to it. */
+    override fun onChannelOpened(channel: com.google.android.gms.wearable.Channel) {
+        // Not used
+    }
+
+    override fun onPeerConnected(peer: com.google.android.gms.wearable.Node) {
+        Log.d(TAG, "Watch connected: ${peer.displayName}")
+        scope.launch { sendProgramsToWatch(peer.id) }
+    }
+
+    private suspend fun sendProgramsToWatch(nodeId: String) {
+        try {
+            val repository = TrainingProgramRepository(this)
+            val programs = repository.getAllProgramsOnce()
+            if (programs.isEmpty()) return
+            val items = programs.joinToString(",") { p ->
+                """{"name":${JSONObject.quote(p.name)},"configJson":${JSONObject.quote(p.intervalConfigJson)},"createdAt":${p.createdAt}}"""
+            }
+            val json = "[$items]"
+            Wearable.getMessageClient(this)
+                .sendMessage(nodeId, PATH_SYNC_PROGRAMS_TO_WATCH, json.toByteArray()).await()
+            Log.d(TAG, "Sent ${programs.size} programs to watch")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to send programs to watch: ${e.message}")
         }
     }
 

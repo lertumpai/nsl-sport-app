@@ -37,12 +37,16 @@ data class IntervalConfig(
     fun totalCycleDistanceMeters(): Int = activities.sumOf { it.distanceMeters }
 
     /** ชื่อ activity ณ index ที่กำหนด */
-    fun activityLabel(index: Int): String =
-        activities.getOrNull(index % activities.size)?.type?.label ?: ""
+    fun activityLabel(index: Int): String {
+        if (activities.isEmpty()) return ""
+        return activities.getOrNull(index % activities.size)?.type?.label ?: ""
+    }
 
     /** ระยะทางของ activity ณ index ที่กำหนด */
-    fun activityDistance(index: Int): Int =
-        activities.getOrNull(index % activities.size)?.distanceMeters ?: 0
+    fun activityDistance(index: Int): Int {
+        if (activities.isEmpty()) return 0
+        return activities.getOrNull(index % activities.size)?.distanceMeters ?: 0
+    }
 
     companion object {
         /** แปลง seconds/km เป็น string "m:ss" */

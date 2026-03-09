@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,6 +36,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -41,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -64,9 +68,43 @@ import com.nsl.sportapp.data.model.IntervalMode
 fun IntervalSetupScreen(
     viewModel: IntervalSetupViewModel,
     onStartWorkout: (IntervalConfig?) -> Unit,
+    onSaveProgram: ((String, IntervalConfig) -> Unit)? = null,
     onBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    var showSaveDialog by remember { mutableStateOf(false) }
+    var programName by remember { mutableStateOf("") }
+
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            title = { Text("บันทึกโปรแกรม") },
+            text = {
+                OutlinedTextField(
+                    value = programName,
+                    onValueChange = { programName = it },
+                    label = { Text("ชื่อโปรแกรม") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val config = viewModel.buildIntervalConfig()
+                        if (programName.isNotBlank() && config != null) {
+                            onSaveProgram?.invoke(programName.trim(), config)
+                            showSaveDialog = false
+                            programName = ""
+                        }
+                    },
+                    enabled = programName.isNotBlank()
+                ) { Text("บันทึก") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveDialog = false }) { Text("ยกเลิก") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -75,6 +113,13 @@ fun IntervalSetupScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "กลับ")
+                    }
+                },
+                actions = {
+                    if (onSaveProgram != null) {
+                        IconButton(onClick = { showSaveDialog = true }) {
+                            Icon(Icons.Default.Save, contentDescription = "บันทึกโปรแกรม")
+                        }
                     }
                 }
             )
@@ -128,6 +173,21 @@ fun IntervalSetupScreen(
                     onSetPaceAlert = viewModel::setPaceAlert,
                     onApplyPreset = viewModel::applyPreset
                 )
+            }
+
+            // Save program button
+            if (onSaveProgram != null) {
+                item {
+                    OutlinedButton(
+                        onClick = { showSaveDialog = true },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        enabled = state.mode == IntervalMode.PACE_CONTROLLED || state.activities.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null)
+                        Text("  บันทึกเป็นโปรแกรม", fontSize = 15.sp)
+                    }
+                }
             }
 
             // Start button

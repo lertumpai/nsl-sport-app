@@ -13,12 +13,15 @@ import com.nsl.sportapp.ui.history.WorkoutHistoryScreen
 import com.nsl.sportapp.ui.home.HomeScreen
 import com.nsl.sportapp.ui.interval.IntervalSetupScreen
 import com.nsl.sportapp.ui.interval.IntervalSetupViewModel
+import com.nsl.sportapp.ui.programs.TrainingProgramsScreen
+import com.nsl.sportapp.ui.programs.TrainingProgramsViewModel
 import com.nsl.sportapp.ui.workout.ActiveWorkoutScreen
 import com.nsl.sportapp.ui.workout.WorkoutViewModel
 
 object Routes {
     const val HOME = "home"
     const val INTERVAL_SETUP = "interval_setup"
+    const val PROGRAMS = "programs"
     const val ACTIVE_WORKOUT = "active_workout"
     const val HISTORY = "history"
     const val WORKOUT_DETAIL = "workout_detail/{workoutId}"
@@ -29,6 +32,7 @@ object Routes {
 fun AppNavigation(navController: NavHostController) {
     val workoutVm: WorkoutViewModel = viewModel()
     val historyVm: HistoryViewModel = viewModel()
+    val programsVm: TrainingProgramsViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
 
@@ -44,6 +48,9 @@ fun AppNavigation(navController: NavHostController) {
                 },
                 onOpenHistory = {
                     navController.navigate(Routes.HISTORY)
+                },
+                onOpenPrograms = {
+                    navController.navigate(Routes.PROGRAMS)
                 }
             )
         }
@@ -60,6 +67,25 @@ fun AppNavigation(navController: NavHostController) {
                     navController.navigate(Routes.ACTIVE_WORKOUT) {
                         popUpTo(Routes.HOME)
                     }
+                },
+                onSaveProgram = { name, config ->
+                    programsVm.saveProgram(name, config)
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.PROGRAMS) {
+            TrainingProgramsScreen(
+                viewModel = programsVm,
+                onStartProgram = { config ->
+                    workoutVm.startWorkout(navController.context, config)
+                    navController.navigate(Routes.ACTIVE_WORKOUT) {
+                        popUpTo(Routes.HOME)
+                    }
+                },
+                onCreateNew = {
+                    navController.navigate(Routes.INTERVAL_SETUP)
                 },
                 onBack = { navController.popBackStack() }
             )
