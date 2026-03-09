@@ -36,33 +36,12 @@ class WearDataLayerListener : WearableListenerService() {
 
             PATH_INTERVAL_PHASE -> {
                 val phase = String(event.data)
-                Log.d(TAG, "Interval phase: $phase")
-                // Update companion object state directly (service may not be running yet)
-                val phaseLabel = when (phase) {
-                    "RUN" -> "วิ่ง"
-                    "WALK" -> "เดิน"
-                    "REST" -> "พัก"
-                    else -> phase
-                }
-                WearWorkoutService.currentPhase // read to ensure initialized
-                // Trigger vibration if service is running
-                try {
-                    val svcIntent = Intent(this, WearWorkoutService::class.java)
-                    // Service will receive START and handle phase internally
-                } catch (e: Exception) {
-                    Log.w(TAG, "Service not running for phase change")
-                }
+                Log.d(TAG, "Interval phase from phone: $phase")
+                // Phase changes from phone are informational only; watch now tracks independently
             }
 
             PATH_STATS -> {
-                // Format: "distMeters:paceSecsPerKm"
-                val data = String(event.data)
-                val parts = data.split(":")
-                if (parts.size == 2) {
-                    val dist = parts[0].toFloatOrNull() ?: 0f
-                    val pace = parts[1].toFloatOrNull() ?: 0f
-                    Log.d(TAG, "Stats update: dist=$dist pace=$pace")
-                }
+                Log.d(TAG, "Stats from phone (watch now independent)")
             }
         }
     }

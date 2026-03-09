@@ -1,5 +1,6 @@
 package com.nsl.sportapp.ui.history
 
+import android.graphics.Paint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,13 +36,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.nsl.sportapp.data.db.entity.WorkoutEntity
 import com.nsl.sportapp.data.db.entity.WorkoutSegmentEntity
 import com.nsl.sportapp.data.model.IntervalConfig
 import kotlinx.serialization.json.Json
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Polyline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,9 +155,79 @@ fun WorkoutDetailScreen(
                         StatRow("Pace ช้าสุด", formatPace(paceList.max()))
                     }
                 }
+
+                // Route map
+                val gpsPoints = segments.filter { it.latitude != 0.0 && it.longitude != 0.0 }
+                if (gpsPoints.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("เส้นทาง", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Spacer(Modifier.height(8.dp))
+                            RouteMapView(
+                                segments = gpsPoints,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(280.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun RouteMapView(
+    segments: List<WorkoutSegmentEntity>,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val mapView = remember {
+        Configuration.getInstance().userAgentValue = context.packageName
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            isTilesScaledToDpi = true
+        }
+    }
+
+    DisposableEffect(Unit) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
+
+    AndroidView(
+        factory = { mapView },
+        modifier = modifier,
+        update = { map ->
+            val points = segments.map { GeoPoint(it.latitude, it.longitude) }
+            if (points.isEmpty()) return@AndroidView
+
+            map.overlays.clear()
+
+            val polyline = Polyline().apply {
+                setPoints(points)
+                outlinePaint.color = Color(0xFF2196F3).toArgb()
+                outlinePaint.strokeWidth = 8f
+                outlinePaint.strokeCap = Paint.Cap.ROUND
+                outlinePaint.strokeJoin = Paint.Join.ROUND
+                outlinePaint.isAntiAlias = true
+            }
+            map.overlays.add(polyline)
+
+            // Fit map to route bounds
+            val box = org.osmdroid.util.BoundingBox.fromGeoPoints(points)
+            map.post {
+                map.zoomToBoundingBox(box.increaseByScale(1.2f), false)
+            }
+            map.invalidate()
+        }
+    )
 }
 
 @Composable

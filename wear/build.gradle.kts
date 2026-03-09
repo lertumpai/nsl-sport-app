@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -57,6 +59,17 @@ dependencies {
 
     // Wearable Data Layer
     implementation(libs.play.services.wearable)
+
+    // Location (GPS on watch)
+    implementation(libs.play.services.location)
+
+    // Room local DB
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    kapt(libs.room.compiler)
+
+    // Serialization (for sync payload)
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)

@@ -67,4 +67,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.gson)
+    implementation(libs.osmdroid.android)
 }

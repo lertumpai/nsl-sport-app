@@ -143,7 +143,7 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
             ACTION_PAUSE -> pauseWorkout()
             ACTION_RESUME -> resumeWorkout()
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startWorkout(config: IntervalConfig?) {
@@ -178,14 +178,14 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
         timerJob?.cancel()
         paceAlertJob?.cancel()
 
-        lifecycleScope.launch {
-            saveWorkoutToDb(state)
-        }
-
         _state.value = WorkoutState(isRunning = false)
         notifyWatchWorkoutStop()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+
+        lifecycleScope.launch {
+            saveWorkoutToDb(state)
+            stopSelf()
+        }
     }
 
     private fun pauseWorkout() {

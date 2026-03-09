@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,12 +28,8 @@ import androidx.wear.compose.material.Text
 import com.nsl.sportapp.wear.service.WearWorkoutService
 
 @Composable
-fun MainWearScreen(
-    onStartWorkout: () -> Unit,
-    onViewActiveWorkout: () -> Unit
-) {
-    val isActive by WearWorkoutService.isActive.collectAsState()
-    val heartRate by WearWorkoutService.heartRate.collectAsState()
+fun MainWearScreen(onStartWorkout: () -> Unit, onHistory: () -> Unit = {}) {
+    val state by WearWorkoutService.state.collectAsState()
 
     Box(
         modifier = Modifier
@@ -45,42 +40,44 @@ fun MainWearScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            if (isActive) {
-                // Show HR and link to active workout
-                Text(
-                    "กำลังวิ่ง",
-                    color = Color(0xFFFF6B35),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(8.dp))
-                HeartRateDisplay(heartRate)
-                Spacer(Modifier.height(12.dp))
+            Text(
+                "NSL Sport",
+                color = MaterialTheme.colors.onBackground,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(6.dp))
+            HeartRateDisplay(state.heartRate)
+            Spacer(Modifier.height(12.dp))
+            // Two main buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
                 Button(
-                    onClick = onViewActiveWorkout,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2196F3))
+                    onClick = onStartWorkout,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFFF6B35)),
+                    modifier = Modifier.size(width = 80.dp, height = 36.dp)
                 ) {
-                    Text("ดูสถิติ", fontSize = 12.sp)
+                    Text("เริ่มวิ่ง", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-            } else {
-                Text(
-                    "NSL Sport",
-                    color = MaterialTheme.colors.onBackground,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "รอสัญญาณจากโทรศัพท์",
-                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(12.dp))
-                HeartRateDisplay(heartRate)
+                Button(
+                    onClick = onHistory,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2196F3)),
+                    modifier = Modifier.size(width = 72.dp, height = 36.dp)
+                ) {
+                    Text("ประวัติ", fontSize = 11.sp)
+                }
             }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "หรือเริ่มจากโทรศัพท์",
+                color = MaterialTheme.colors.onBackground.copy(alpha = 0.4f),
+                fontSize = 9.sp,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -88,11 +85,7 @@ fun MainWearScreen(
 @Composable
 fun HeartRateDisplay(heartRate: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = "❤",
-            fontSize = 20.sp,
-            color = Color.Red
-        )
+        Text(text = "❤", fontSize = 20.sp, color = Color.Red)
         Text(
             text = if (heartRate > 0) "$heartRate" else "--",
             fontSize = 28.sp,

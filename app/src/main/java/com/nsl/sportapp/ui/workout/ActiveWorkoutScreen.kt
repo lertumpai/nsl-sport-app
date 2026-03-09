@@ -34,6 +34,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,9 +61,11 @@ fun ActiveWorkoutScreen(
     val state by viewModel.workoutState.collectAsState()
     var showStopDialog by remember { mutableStateOf(false) }
 
-    // Auto-start if not running
-    if (!state.isRunning && !state.isPaused) {
-        viewModel.startWorkout(context, null)
+    // Auto-start only once when screen first enters composition (free-run mode)
+    LaunchedEffect(Unit) {
+        if (!state.isRunning && !state.isPaused) {
+            viewModel.startWorkout(context, null)
+        }
     }
 
     val phaseColor by animateColorAsState(
