@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,8 +35,10 @@ import androidx.wear.compose.material.ScalingLazyColumn
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.google.android.gms.wearable.Wearable
+import com.nsl.sportapp.wear.datalayer.WearSyncHelper
 import com.nsl.sportapp.wear.service.WearWorkoutService
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 @Composable
@@ -46,10 +49,14 @@ fun MainWearScreen(
 ) {
     val state by WearWorkoutService.state.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Independent connection check — polls every 5 s so it stays accurate
     // even when WearWorkoutService is not running (e.g. after workout ends).
     var phoneConnected by remember { mutableStateOf(false) }
+    var isSyncing by remember { mutableStateOf(false) }
+    var lastSyncCount by remember { mutableStateOf(-1) }
+
     LaunchedEffect(Unit) {
         while (true) {
             phoneConnected = try {
@@ -138,6 +145,34 @@ fun MainWearScreen(
                     modifier = Modifier.fillMaxWidth().height(38.dp)
                 ) {
                     Text("ประวัติ", fontSize = 12.sp)
+                }
+            }
+
+            // Manual sync button — pushes unsynced workouts to phone
+            item {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSyncing = true
+                            lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
+                            isSyncing = false
+                        }
+                    },
+                    enabled = phoneConnected && !isSyncing,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = if (phoneConnected) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(38.dp)
+                ) {
+                    Text(
+                        when {
+                            isSyncing -> "กำลังซิงค์..."
+                            lastSyncCount == 0 -> "ซิงค์แล้ว ✓"
+                            lastSyncCount > 0 -> "ซิงค์แล้ว $lastSyncCount รายการ ✓"
+                            else -> "ซิงค์ข้อมูล"
+                        },
+                        fontSize = 12.sp
+                    )
                 }
             }
         }

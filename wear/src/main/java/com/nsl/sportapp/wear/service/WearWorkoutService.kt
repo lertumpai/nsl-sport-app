@@ -30,6 +30,7 @@ import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.nsl.sportapp.data.model.IntervalConfig
+import com.nsl.sportapp.wear.datalayer.WearSyncHelper
 import com.nsl.sportapp.data.model.IntervalMode
 import com.nsl.sportapp.wear.data.db.entity.WearWorkoutEntity
 import com.nsl.sportapp.wear.data.db.entity.WearWorkoutSegmentEntity
@@ -412,31 +413,13 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
 
     private fun triggerSyncToPhone() {
         lifecycleScope.launch {
-            val nodeId = connectedNodeId ?: return@launch
             try {
-                // Sync unsynced workouts only — programs are one-way (phone → watch)
-                val unsynced = repository.getUnsyncedWorkouts()
-                for (workout in unsynced) {
-                    val segments = repository.getSegments(workout.id)
-                    val payload = buildSyncPayload(workout, segments)
-                    messageClient.sendMessage(nodeId, "/sync/workout", payload.toByteArray()).await()
-                    repository.markSynced(workout.id)
-                    Log.d(TAG, "Synced workout ${workout.id} to phone")
-                }
+                val count = WearSyncHelper.syncWorkoutsToPhone(this@WearWorkoutService)
+                if (count > 0) Log.d(TAG, "triggerSyncToPhone: synced $count workout(s)")
             } catch (e: Exception) {
                 Log.w(TAG, "Sync failed: ${e.message}")
             }
         }
-    }
-
-    private fun buildSyncPayload(
-        workout: WearWorkoutEntity,
-        segments: List<WearWorkoutSegmentEntity>
-    ): String {
-        val segJson = segments.joinToString(",") {
-            """{"ts":${it.timestamp},"lat":${it.latitude},"lng":${it.longitude},"dist":${it.distanceFromStartMeters},"pace":${it.paceSecsPerKm},"hr":${it.heartRate}}"""
-        }
-        return """{"id":${workout.id},"startTime":${workout.startTime},"endTime":${workout.endTime},"durationMillis":${workout.durationMillis},"distanceMeters":${workout.totalDistanceMeters},"avgPace":${workout.avgPaceSecsPerKm},"avgHr":${workout.avgHeartRate},"maxHr":${workout.maxHeartRate},"segments":[${segJson}]}"""
     }
 
     // ── Heart Rate Monitor ────────────────────────────────────────────────
