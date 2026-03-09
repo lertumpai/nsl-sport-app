@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -35,9 +36,6 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
 }
 
 dependencies {
@@ -54,7 +52,8 @@ dependencies {
 
     // Health Services for heart rate
     implementation(libs.health.services.client)
-    implementation(libs.concurrent.futures.ktx)
+    implementation(libs.concurrent.futures)
+    implementation(libs.guava.listenablefuture)
 
     // Wearable Data Layer
     implementation(libs.play.services.wearable)

@@ -101,7 +101,8 @@ class WearWorkoutService : LifecycleService() {
     private fun registerHeartRateMonitor() {
         if (healthServicesRegistered) return
         try {
-            val passiveClient = HealthServices.getClient(this).passiveMonitoringClient
+            val healthClient = HealthServices.getClient(this@WearWorkoutService)
+            val passiveClient = healthClient.passiveMonitoringClient
             val config = PassiveListenerConfig.builder()
                 .setDataTypes(setOf(DataType.HEART_RATE_BPM))
                 .build()
@@ -116,12 +117,7 @@ class WearWorkoutService : LifecycleService() {
     private fun unregisterHeartRateMonitor() {
         if (!healthServicesRegistered) return
         healthServicesRegistered = false
-        try {
-            val passiveClient = HealthServices.getClient(this).passiveMonitoringClient
-            passiveClient.javaClass.getMethod("clearPassiveListenerCallbackAsync").invoke(passiveClient)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to unregister HR monitor", e)
-        }
+        Log.d(TAG, "Heart rate monitoring stopped")
     }
 
     private fun findConnectedNode() {

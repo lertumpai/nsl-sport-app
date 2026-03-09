@@ -58,6 +58,7 @@ class WorkoutTrackingService : LifecycleService(), MessageClient.OnMessageReceiv
         const val PATH_INTERVAL_PHASE = "/workout/interval_phase"
         const val PATH_STATS = "/workout/stats"
 
+        // Intent actions
         const val ACTION_START = "com.nsl.sportapp.ACTION_START"
         const val ACTION_STOP = "com.nsl.sportapp.ACTION_STOP"
         const val ACTION_PAUSE = "com.nsl.sportapp.ACTION_PAUSE"

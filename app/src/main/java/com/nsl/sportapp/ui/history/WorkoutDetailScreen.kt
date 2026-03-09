@@ -111,23 +111,23 @@ fun WorkoutDetailScreen(
             }
 
             // Interval config
-            val intervalConfig = w.intervalConfigJson?.let { json ->
-                runCatching { Json.decodeFromString<IntervalConfig>(json) }.getOrNull()
-            }
-            intervalConfig?.let { config ->
-                StatGroupCard(title = "การตั้งค่า Interval") {
-                    StatRow("โหมด", if (config.mode.name == "ACTIVITY_BASED") "Activity List" else "ควบคุม Pace")
-                    if (config.activities.isNotEmpty()) {
-                        config.activities.forEachIndexed { i, act ->
-                            StatRow("  ${i + 1}. ${act.type.label}", "${act.distanceMeters} เมตร")
+            w.intervalConfigJson?.let { json ->
+                val config = runCatching { Json.decodeFromString<IntervalConfig>(json) }.getOrNull()
+                if (config != null) {
+                    StatGroupCard(title = "การตั้งค่า Interval") {
+                        StatRow("โหมด", if (config.mode.name == "ACTIVITY_BASED") "Activity List" else "ควบคุม Pace")
+                        if (config.activities.isNotEmpty()) {
+                            config.activities.forEachIndexed { i, act ->
+                                StatRow("  ${i + 1}. ${act.type.label}", "${act.distanceMeters} เมตร")
+                            }
+                            StatRow("จำนวนรอบ", "${config.repetitions} รอบ")
                         }
-                        StatRow("จำนวนรอบ", "${config.repetitions} รอบ")
-                    }
-                    if (config.paceAlertEnabled) {
-                        StatRow(
-                            "ช่วง Pace",
-                            "${IntervalConfig.formatPace(config.minPaceSecsPerKm)} – ${IntervalConfig.formatPace(config.maxPaceSecsPerKm)}"
-                        )
+                        if (config.paceAlertEnabled) {
+                            StatRow(
+                                "ช่วง Pace",
+                                "${IntervalConfig.formatPace(config.minPaceSecsPerKm)} – ${IntervalConfig.formatPace(config.maxPaceSecsPerKm)}"
+                            )
+                        }
                     }
                 }
             }
