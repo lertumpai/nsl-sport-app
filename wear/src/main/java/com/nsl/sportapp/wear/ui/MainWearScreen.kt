@@ -59,11 +59,20 @@ fun MainWearScreen(
 
     LaunchedEffect(Unit) {
         while (true) {
-            phoneConnected = try {
-                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-                nodes.isNotEmpty()
+            val nodes = try {
+                Wearable.getNodeClient(context).connectedNodes.await()
             } catch (e: Exception) {
-                false
+                emptyList()
+            }
+            val wasConnected = phoneConnected
+            phoneConnected = nodes.isNotEmpty()
+
+            // First time phone is detected (app open or reconnect) — auto-sync everything
+            if (phoneConnected && !wasConnected) {
+                scope.launch {
+                    WearSyncHelper.syncWorkoutsToPhone(context)
+                    WearSyncHelper.pullProgramsFromDataLayer(context)
+                }
             }
             delay(15_000L)
         }
@@ -155,7 +164,7 @@ fun MainWearScreen(
                         scope.launch {
                             isSyncing = true
                             lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
-                            WearSyncHelper.requestProgramsFromPhone(context)
+                            WearSyncHelper.pullProgramsFromDataLayer(context)
                             isSyncing = false
                         }
                     },

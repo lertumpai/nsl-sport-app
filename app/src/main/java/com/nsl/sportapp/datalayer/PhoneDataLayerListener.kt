@@ -2,6 +2,8 @@ package com.nsl.sportapp.datalayer
 
 import android.util.Log
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.Node
+import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.nsl.sportapp.data.db.entity.WorkoutEntity
@@ -18,61 +20,76 @@ import org.json.JSONObject
 
 /**
  * Listens for data synced from the WearOS watch.
- * - /sync/workout : saves workout to phone DB
- * Program sync is one-way (phone → watch only).
- * When watch connects, phone pushes its programs to the watch.
+ *
+ * Workouts (Watch → Phone): Received via MessageClient at /sync/workout.
+ * Programs (Phone → Watch): Pushed via DataClient so they persist and auto-sync on reconnect.
+ *   - pushProgramsToDataLayer() writes a DataItem the watch reads via onDataChanged().
  */
 class PhoneDataLayerListener : WearableListenerService() {
 
     companion object {
         private const val TAG = "PhoneDataLayer"
         const val PATH_SYNC_WORKOUT = "/sync/workout"
-        const val PATH_SYNC_PROGRAMS_TO_WATCH = "/sync/programs"
-        const val PATH_REQUEST_PROGRAMS = "/sync/request_programs"
+        /** Must match WearSyncHelper.DATA_PATH_PROGRAMS on the wear side. */
+        private const val DATA_PATH_PROGRAMS = "/data/programs"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val programRepository by lazy { TrainingProgramRepository(this) }
 
+    // ─── Messages from watch ───────────────────────────────────────────────────
+
     override fun onMessageReceived(event: MessageEvent) {
         when (event.path) {
             PATH_SYNC_WORKOUT -> {
                 val json = String(event.data)
-                Log.d(TAG, "Received workout sync from watch")
+                Log.d(TAG, "Received workout from watch (${event.data.size} bytes)")
                 scope.launch { saveWatchWorkout(json) }
             }
-            PATH_REQUEST_PROGRAMS -> {
-                Log.d(TAG, "Watch requested programs from node: ${event.sourceNodeId}")
-                scope.launch { sendProgramsToWatch(event.sourceNodeId) }
+        }
+    }
+
+    // ─── Peer connection ───────────────────────────────────────────────────────
+
+    /** Called when the watch connects — push current programs to DataLayer. */
+    override fun onPeerConnected(peer: Node) {
+        Log.d(TAG, "Watch connected: ${peer.displayName} — pushing programs to DataLayer")
+        pushProgramsToDataLayer()
+    }
+
+    // ─── Programs via DataClient ───────────────────────────────────────────────
+
+    /**
+     * Writes all training programs as a persistent DataItem at DATA_PATH_PROGRAMS.
+     * The Wearable framework delivers it to the watch now if connected, or queues it
+     * until the watch reconnects — no manual request from the watch needed.
+     */
+    private fun pushProgramsToDataLayer() {
+        scope.launch {
+            try {
+                val programs = programRepository.getAllProgramsOnce()
+                if (programs.isEmpty()) {
+                    Log.d(TAG, "pushProgramsToDataLayer: no programs to push")
+                    return@launch
+                }
+                val items = programs.joinToString(",") { p ->
+                    """{"name":${JSONObject.quote(p.name)},"configJson":${JSONObject.quote(p.intervalConfigJson)},"createdAt":${p.createdAt}}"""
+                }
+                val json = "[$items]"
+                val request = PutDataMapRequest.create(DATA_PATH_PROGRAMS).apply {
+                    dataMap.putString("programsJson", json)
+                    // Bump timestamp so GMS treats it as changed even if content is identical
+                    dataMap.putLong("updatedAt", System.currentTimeMillis())
+                }.asPutDataRequest().setUrgent()
+                Wearable.getDataClient(this@PhoneDataLayerListener).putDataItem(request).await()
+                Log.d(TAG, "Pushed ${programs.size} programs to DataLayer (${json.length} bytes)")
+            } catch (e: Exception) {
+                Log.w(TAG, "pushProgramsToDataLayer failed: ${e.message}")
             }
         }
     }
 
-    /** Called when a node (watch) connects — push phone programs to it. */
-    override fun onChannelOpened(channel: com.google.android.gms.wearable.Channel) {
-        // Not used
-    }
-
-    override fun onPeerConnected(peer: com.google.android.gms.wearable.Node) {
-        Log.d(TAG, "Watch connected: ${peer.displayName}")
-        scope.launch { sendProgramsToWatch(peer.id) }
-    }
-
-    private suspend fun sendProgramsToWatch(nodeId: String) {
-        try {
-            val programs = programRepository.getAllProgramsOnce()
-            if (programs.isEmpty()) return
-            val items = programs.joinToString(",") { p ->
-                """{"name":${JSONObject.quote(p.name)},"configJson":${JSONObject.quote(p.intervalConfigJson)},"createdAt":${p.createdAt}}"""
-            }
-            val json = "[$items]"
-            Wearable.getMessageClient(this)
-                .sendMessage(nodeId, PATH_SYNC_PROGRAMS_TO_WATCH, json.toByteArray()).await()
-            Log.d(TAG, "Sent ${programs.size} programs to watch")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to send programs to watch: ${e.message}")
-        }
-    }
+    // ─── Save workout from watch ───────────────────────────────────────────────
 
     private suspend fun saveWatchWorkout(json: String) {
         try {
@@ -111,7 +128,7 @@ class PhoneDataLayerListener : WearableListenerService() {
             }
 
             repository.saveWorkout(workout, segments)
-            Log.d(TAG, "Watch workout saved to phone DB (dist=${workout.totalDistanceMeters}m)")
+            Log.d(TAG, "Watch workout saved to phone DB (dist=${workout.totalDistanceMeters}m, ${segments.size} segments)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse/save watch workout", e)
         }

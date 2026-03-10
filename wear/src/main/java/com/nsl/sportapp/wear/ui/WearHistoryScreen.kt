@@ -79,14 +79,14 @@ fun WearHistoryScreen(onBack: () -> Unit) {
                 }
             }
 
-            // Sync button — syncs workouts to phone + requests programs
+            // Sync button — syncs workouts to phone + pulls programs from DataLayer
             item {
                 Button(
                     onClick = {
                         scope.launch {
                             isSyncing = true
                             lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
-                            WearSyncHelper.requestProgramsFromPhone(context)
+                            WearSyncHelper.pullProgramsFromDataLayer(context)
                             isSyncing = false
                         }
                     },

@@ -67,6 +67,13 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         private const val PACE_ALERT_INTERVAL_MS = 5000L
         private val json = Json { ignoreUnknownKeys = true }
 
+        // GPS quality thresholds
+        private const val GPS_WARMUP_FIXES = 4       // Skip first N fixes while GPS settles
+        private const val MAX_ACCURACY_METERS = 50f  // Reject fixes worse than this
+        private const val MIN_MOVEMENT_METERS = 3.0f // Minimum distance per update (reduces jitter)
+        private const val MIN_SPEED_MPS = 0.4f       // ~1.4 km/h — below is stationary
+        private const val MAX_SPEED_MPS = 12f        // ~43 km/h — above is GPS glitch/teleport
+
         // Paths for messages from phone
         const val PATH_WORKOUT_START = "/workout/start"
         const val PATH_WORKOUT_STOP = "/workout/stop"
@@ -116,6 +123,8 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
     private var healthServicesRegistered = false
     // Track last real movement so we can zero pace when stationary
     private var lastMovementTime: Long = 0L
+    // GPS warmup counter — first N fixes are discarded while GPS settles on actual position
+    private var gpsFixCount = 0
 
     private val locationHistory = ArrayDeque<Pair<Long, Float>>(30)
     private val segmentBuffer = mutableListOf<WearWorkoutSegmentEntity>()
@@ -172,6 +181,7 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         segmentBuffer.clear()
         lastLocation = null
         lastMovementTime = System.currentTimeMillis()
+        gpsFixCount = 0
 
         // Determine pace from config if provided
         val effectiveMin = if (config != null) config.minPaceSecsPerKm else minPace
@@ -224,12 +234,17 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         stopLocationUpdates()
         timerJob?.cancel()
         paceAlertJob?.cancel()
-        _state.value = _state.value.copy(isPaused = true)
+        // Clear pace history so stale data doesn't affect pace calculation on resume
+        locationHistory.clear()
+        _state.value = _state.value.copy(isPaused = true, currentPaceSecsPerKm = 0f)
     }
 
     private fun resumeWorkout() {
         if (!_state.value.isRunning || !_state.value.isPaused) return
-        _state.value = _state.value.copy(isPaused = false)
+        // Re-warm GPS after pause so first few fixes don't skew distance/pace
+        gpsFixCount = 0
+        lastMovementTime = System.currentTimeMillis()
+        _state.value = _state.value.copy(isPaused = false, currentPaceSecsPerKm = 0f)
         startLocationUpdates()
         startTimer()
         if (_state.value.paceAlertEnabled) startPaceAlertMonitor()
@@ -283,47 +298,82 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
     }
 
     private fun handleNewLocation(location: Location) {
-        val prev = lastLocation
+        val s = _state.value
+        if (!s.isRunning || s.isPaused) return
+
+        // 1. Reject poor-accuracy fixes (GPS not yet settled, indoors, urban canyon)
+        if (location.accuracy > MAX_ACCURACY_METERS) {
+            _state.value = s.copy(gpsActive = false)
+            return
+        }
+
+        // 2. GPS warmup: accept position but don't count distance for first N fixes.
+        //    The first few fixes drift from last-known/cached position to actual position,
+        //    which would appear as false movement of 100s of metres.
+        gpsFixCount++
+        if (gpsFixCount <= GPS_WARMUP_FIXES) {
+            lastLocation = location
+            _state.value = s.copy(gpsActive = true)
+            return
+        }
+
+        val prev = lastLocation ?: run { lastLocation = location; return }
+        val delta = prev.distanceTo(location)
+        val now = System.currentTimeMillis()
+
+        // 3. Teleport guard: if computed speed exceeds a runner's max, it's a GPS glitch.
+        //    Update lastLocation to new position but don't count the distance.
+        val timeDeltaSecs = ((now - (locationHistory.lastOrNull()?.first ?: (now - LOCATION_INTERVAL_MS))) / 1000f)
+            .coerceAtLeast(0.5f)
+        val computedSpeedMs = if (timeDeltaSecs > 0) delta / timeDeltaSecs else 0f
+        if (computedSpeedMs > MAX_SPEED_MPS) {
+            Log.w(TAG, "GPS teleport detected (${computedSpeedMs.toInt()} m/s) — skipping")
+            lastLocation = location
+            return
+        }
+
+        // 4. Movement validation: use GPS chip speed when available (more reliable than
+        //    distance deltas for low speeds / stationary).
+        val isMoving: Boolean = if (location.hasSpeed() && location.speed >= 0f) {
+            location.speed >= MIN_SPEED_MPS
+        } else {
+            delta >= MIN_MOVEMENT_METERS
+        }
+
         lastLocation = location
 
-        if (prev != null) {
-            val delta = prev.distanceTo(location)
-            if (delta < 0.5f) return
+        if (!isMoving) return
 
-            val newTotal = _state.value.distanceMeters + delta
-            val now = System.currentTimeMillis()
-            lastMovementTime = now  // record actual movement
+        val newTotal = s.distanceMeters + delta
+        lastMovementTime = now
 
-            locationHistory.addLast(now to newTotal)
-            while (locationHistory.size > 1 && now - locationHistory.first().first > 30_000)
-                locationHistory.removeFirst()
+        locationHistory.addLast(now to newTotal)
+        while (locationHistory.size > 1 && now - locationHistory.first().first > 30_000)
+            locationHistory.removeFirst()
 
-            val pace = calculateRollingPace()
-            val avgPace = calculateAvgPace(newTotal)
+        val pace = calculateRollingPace()
+        val avgPace = calculateAvgPace(newTotal)
 
-            var updatedState = _state.value.copy(
-                distanceMeters = newTotal,
-                currentPaceSecsPerKm = pace,
-                avgPaceSecsPerKm = avgPace,
-                gpsActive = true
+        var updatedState = s.copy(
+            distanceMeters = newTotal,
+            currentPaceSecsPerKm = pace,
+            avgPaceSecsPerKm = avgPace,
+            gpsActive = true
+        )
+        updatedState = checkIntervalTransition(updatedState, newTotal)
+        _state.value = updatedState
+
+        segmentBuffer.add(
+            WearWorkoutSegmentEntity(
+                workoutId = 0,
+                timestamp = now,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                distanceFromStartMeters = newTotal,
+                paceSecsPerKm = pace,
+                heartRate = _state.value.heartRate
             )
-
-            // Check interval phase transition
-            updatedState = checkIntervalTransition(updatedState, newTotal)
-            _state.value = updatedState
-
-            segmentBuffer.add(
-                WearWorkoutSegmentEntity(
-                    workoutId = 0,
-                    timestamp = now,
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    distanceFromStartMeters = newTotal,
-                    paceSecsPerKm = pace,
-                    heartRate = _state.value.heartRate
-                )
-            )
-        }
+        )
     }
 
     private fun checkIntervalTransition(state: WorkoutState, totalDistance: Float): WorkoutState {
