@@ -18,6 +18,22 @@ object WearSyncHelper {
 
     private const val TAG = "WearSyncHelper"
     const val PATH_SYNC_WORKOUT = "/sync/workout"
+    const val PATH_REQUEST_PROGRAMS = "/sync/request_programs"
+
+    /** Ask the phone to push its training programs to this watch. Returns true if request was sent. */
+    suspend fun requestProgramsFromPhone(context: Context): Boolean {
+        return try {
+            val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+            val nodeId = nodes.firstOrNull()?.id ?: return false
+            Wearable.getMessageClient(context)
+                .sendMessage(nodeId, PATH_REQUEST_PROGRAMS, ByteArray(0)).await()
+            Log.d(TAG, "Requested programs from phone")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "requestProgramsFromPhone failed: ${e.message}")
+            false
+        }
+    }
 
     suspend fun syncWorkoutsToPhone(context: Context): Int {
         return try {

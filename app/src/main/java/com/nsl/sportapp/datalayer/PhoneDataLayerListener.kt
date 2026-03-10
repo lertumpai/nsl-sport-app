@@ -28,9 +28,11 @@ class PhoneDataLayerListener : WearableListenerService() {
         private const val TAG = "PhoneDataLayer"
         const val PATH_SYNC_WORKOUT = "/sync/workout"
         const val PATH_SYNC_PROGRAMS_TO_WATCH = "/sync/programs"
+        const val PATH_REQUEST_PROGRAMS = "/sync/request_programs"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val programRepository by lazy { TrainingProgramRepository(this) }
 
     override fun onMessageReceived(event: MessageEvent) {
         when (event.path) {
@@ -38,6 +40,10 @@ class PhoneDataLayerListener : WearableListenerService() {
                 val json = String(event.data)
                 Log.d(TAG, "Received workout sync from watch")
                 scope.launch { saveWatchWorkout(json) }
+            }
+            PATH_REQUEST_PROGRAMS -> {
+                Log.d(TAG, "Watch requested programs from node: ${event.sourceNodeId}")
+                scope.launch { sendProgramsToWatch(event.sourceNodeId) }
             }
         }
     }
@@ -54,8 +60,7 @@ class PhoneDataLayerListener : WearableListenerService() {
 
     private suspend fun sendProgramsToWatch(nodeId: String) {
         try {
-            val repository = TrainingProgramRepository(this)
-            val programs = repository.getAllProgramsOnce()
+            val programs = programRepository.getAllProgramsOnce()
             if (programs.isEmpty()) return
             val items = programs.joinToString(",") { p ->
                 """{"name":${JSONObject.quote(p.name)},"configJson":${JSONObject.quote(p.intervalConfigJson)},"createdAt":${p.createdAt}}"""

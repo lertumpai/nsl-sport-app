@@ -412,14 +412,12 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         }
     }
 
-    private fun triggerSyncToPhone() {
-        lifecycleScope.launch {
-            try {
-                val count = WearSyncHelper.syncWorkoutsToPhone(this@WearWorkoutService)
-                if (count > 0) Log.d(TAG, "triggerSyncToPhone: synced $count workout(s)")
-            } catch (e: Exception) {
-                Log.w(TAG, "Sync failed: ${e.message}")
-            }
+    private suspend fun triggerSyncToPhone() {
+        try {
+            val count = WearSyncHelper.syncWorkoutsToPhone(this@WearWorkoutService)
+            if (count > 0) Log.d(TAG, "triggerSyncToPhone: synced $count workout(s)")
+        } catch (e: Exception) {
+            Log.w(TAG, "Sync failed: ${e.message}")
         }
     }
 

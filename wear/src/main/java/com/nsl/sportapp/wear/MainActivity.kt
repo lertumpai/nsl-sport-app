@@ -37,6 +37,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        setContent {
+            MaterialTheme {
+                WearApp()
+            }
+        }
+
+        // Request permissions after UI is shown to avoid blocking first render
         permissionLauncher.launch(
             arrayOf(
                 Manifest.permission.BODY_SENSORS,
@@ -45,12 +52,6 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
-
-        setContent {
-            MaterialTheme {
-                WearApp()
-            }
-        }
     }
 }
 

@@ -155,6 +155,7 @@ fun MainWearScreen(
                         scope.launch {
                             isSyncing = true
                             lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
+                            WearSyncHelper.requestProgramsFromPhone(context)
                             isSyncing = false
                         }
                     },

@@ -1,18 +1,12 @@
 package com.nsl.sportapp.wear.ui
 
-import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,12 +19,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.ScalingLazyColumn
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.TimeText
 import com.nsl.sportapp.wear.data.db.entity.WearWorkoutEntity
 import com.nsl.sportapp.wear.data.repository.WearWorkoutRepository
 import com.nsl.sportapp.wear.datalayer.WearSyncHelper
@@ -45,37 +43,50 @@ fun WearHistoryScreen(onBack: () -> Unit) {
     var isSyncing by remember { mutableStateOf(false) }
     var lastSyncCount by remember { mutableStateOf(-1) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colors.background)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header row: back + title + sync button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = onBack,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Gray),
-                    modifier = Modifier.height(28.dp).padding(end = 4.dp)
-                ) { Text("←", fontSize = 12.sp) }
+    Scaffold(timeText = { TimeText() }) {
+        ScalingLazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            item {
                 Text(
                     "ประวัติการวิ่ง",
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colors.onBackground,
-                    modifier = Modifier.weight(1f)
+                    textAlign = TextAlign.Center
                 )
-                // Sync button — only syncs workouts not yet sent to phone
+            }
+
+            if (workouts.isEmpty()) {
+                item {
+                    Text(
+                        "ยังไม่มีประวัติ",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            } else {
+                workouts.forEach { workout ->
+                    item(key = workout.id) {
+                        WearWorkoutCard(workout)
+                    }
+                }
+            }
+
+            // Sync button — syncs workouts to phone + requests programs
+            item {
                 Button(
                     onClick = {
                         scope.launch {
                             isSyncing = true
                             lastSyncCount = WearSyncHelper.syncWorkoutsToPhone(context)
+                            WearSyncHelper.requestProgramsFromPhone(context)
                             isSyncing = false
                         }
                     },
@@ -83,69 +94,77 @@ fun WearHistoryScreen(onBack: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(
                         backgroundColor = Color(0xFF4CAF50)
                     ),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier.fillMaxWidth().height(36.dp)
                 ) {
                     Text(
                         when {
-                            isSyncing -> "..."
-                            lastSyncCount == 0 -> "✓"
-                            lastSyncCount > 0 -> "✓$lastSyncCount"
-                            else -> "⇪"
+                            isSyncing -> "กำลังซิงค์..."
+                            lastSyncCount == 0 -> "ซิงค์แล้ว ✓"
+                            lastSyncCount > 0 -> "ซิงค์แล้ว $lastSyncCount รายการ ✓"
+                            else -> "ซิงค์ข้อมูล"
                         },
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                 }
             }
 
-            if (workouts.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("ยังไม่มีประวัติ", fontSize = 12.sp,
-                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.5f))
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+            // Back button at bottom — important for round watch faces
+            item {
+                Button(
+                    onClick = onBack,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color.Gray),
+                    modifier = Modifier.fillMaxWidth().height(36.dp)
                 ) {
-                    items(workouts, key = { it.id }) { workout ->
-                        WearWorkoutCard(workout)
-                    }
-                    item { Spacer(Modifier.height(8.dp)) }
+                    Text("กลับ", fontSize = 12.sp)
                 }
             }
+
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
 
 @Composable
 private fun WearWorkoutCard(workout: WearWorkoutEntity) {
-    Column(
+    androidx.compose.foundation.layout.Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colors.surface, MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 4.dp, vertical = 4.dp)
     ) {
-        Text(workout.formattedDate(), fontSize = 10.sp, color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f))
-        Spacer(Modifier.height(2.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                workout.formattedDate(),
+                fontSize = 9.sp,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+            )
+            Text(
+                if (workout.synced) "✓" else "⏳",
+                fontSize = 9.sp,
+                color = if (workout.synced) Color(0xFF4CAF50) else Color(0xFFFF9800)
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(workout.formattedDistance(), fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colors.onSurface)
-            Text(workout.formattedDuration(), fontSize = 13.sp,
-                color = MaterialTheme.colors.onSurface)
+            Text(
+                workout.formattedDistance(),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colors.onSurface
+            )
+            Text(
+                workout.formattedDuration(),
+                fontSize = 13.sp,
+                color = MaterialTheme.colors.onSurface
+            )
         }
         if (workout.avgHeartRate > 0) {
             Text("❤ ${workout.avgHeartRate} bpm", fontSize = 10.sp, color = Color.Red)
-        }
-        // Show sync status — already-synced items won't be re-sent
-        if (workout.synced) {
-            Text("✓ ซิงค์แล้ว", fontSize = 9.sp, color = Color(0xFF4CAF50))
-        } else {
-            Text("⏳ รอซิงค์", fontSize = 9.sp, color = Color(0xFFFF9800))
         }
     }
 }
