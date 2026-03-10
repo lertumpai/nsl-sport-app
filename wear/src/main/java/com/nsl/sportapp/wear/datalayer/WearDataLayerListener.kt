@@ -27,6 +27,7 @@ class WearDataLayerListener : WearableListenerService() {
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val repository by lazy { WearWorkoutRepository(this) }
 
     override fun onMessageReceived(event: MessageEvent) {
         Log.d(TAG, "Message received: ${event.path}")
@@ -63,7 +64,6 @@ class WearDataLayerListener : WearableListenerService() {
 
     private suspend fun saveProgramsFromPhone(json: String) {
         try {
-            val repository = WearWorkoutRepository(this)
             val array = JSONArray(json)
             val programs = mutableListOf<WearTrainingProgramEntity>()
             for (i in 0 until array.length()) {

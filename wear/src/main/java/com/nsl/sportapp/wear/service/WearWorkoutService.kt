@@ -65,6 +65,7 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         const val EXTRA_INTERVAL_CONFIG = "extra_interval_config"
 
         private const val PACE_ALERT_INTERVAL_MS = 5000L
+        private val json = Json { ignoreUnknownKeys = true }
 
         // Paths for messages from phone
         const val PATH_WORKOUT_START = "/workout/start"
@@ -74,9 +75,9 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         private val _state = MutableStateFlow(WorkoutState())
         val state: StateFlow<WorkoutState> = _state.asStateFlow()
 
-        // Convenience accessors kept for backward compatibility
-        val heartRate: StateFlow<Int> get() = MutableStateFlow(_state.value.heartRate).also { it }
-        val isActive: StateFlow<Boolean> get() = MutableStateFlow(_state.value.isRunning).also { it }
+        // Convenience accessors derived from main state flow
+        val heartRate: Int get() = _state.value.heartRate
+        val isActive: Boolean get() = _state.value.isRunning
     }
 
     data class WorkoutState(
@@ -154,7 +155,7 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
                 val maxPace = intent.getIntExtra(EXTRA_MAX_PACE, 0)
                 val configJson = intent.getStringExtra(EXTRA_INTERVAL_CONFIG)
                 val config = configJson?.let {
-                    runCatching { Json { ignoreUnknownKeys = true }.decodeFromString<IntervalConfig>(it) }.getOrNull()
+                    runCatching { json.decodeFromString<IntervalConfig>(it) }.getOrNull()
                 }
                 startWorkout(minPace, maxPace, config)
             }

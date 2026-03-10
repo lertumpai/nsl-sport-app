@@ -109,7 +109,7 @@ fun WearHistoryScreen(onBack: () -> Unit) {
                         .padding(horizontal = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(workouts) { workout ->
+                    items(workouts, key = { it.id }) { workout ->
                         WearWorkoutCard(workout)
                     }
                     item { Spacer(Modifier.height(8.dp)) }

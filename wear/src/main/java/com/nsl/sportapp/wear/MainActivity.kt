@@ -11,8 +11,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.wear.compose.material.MaterialTheme
 import com.nsl.sportapp.data.model.IntervalConfig
 import com.nsl.sportapp.wear.data.repository.WearWorkoutRepository
@@ -60,6 +62,7 @@ fun WearApp() {
     var screen by remember { mutableStateOf(WearScreen.MAIN) }
     val context = LocalContext.current
     val repository = remember { WearWorkoutRepository(context) }
+    val scope = rememberCoroutineScope()
 
     // Always show active screen while workout is running/paused
     if (state.isRunning || state.isPaused) {
@@ -94,7 +97,7 @@ fun WearApp() {
             onStart = { config -> startProgramWorkout(context, config) ; screen = WearScreen.ACTIVE },
             onSaveProgram = { name, config ->
                 val json = Json.encodeToString(config)
-                kotlinx.coroutines.runBlocking {
+                scope.launch {
                     repository.saveProgram(name, json)
                 }
             },

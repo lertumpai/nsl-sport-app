@@ -65,7 +65,7 @@ fun MainWearScreen(
             } catch (e: Exception) {
                 false
             }
-            delay(5_000L)
+            delay(15_000L)
         }
     }
 

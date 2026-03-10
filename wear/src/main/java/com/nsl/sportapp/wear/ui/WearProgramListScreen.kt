@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,7 +43,7 @@ fun WearProgramListScreen(
     onBack: () -> Unit
 ) {
     val programs by repository.allPrograms.collectAsState(initial = emptyList())
-    val json = Json { ignoreUnknownKeys = true }
+    val json = remember { Json { ignoreUnknownKeys = true } }
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -73,7 +74,9 @@ fun WearProgramListScreen(
             } else {
                 programs.forEach { program ->
                     item(key = program.id) {
-                        val config = runCatching { json.decodeFromString<IntervalConfig>(program.intervalConfigJson) }.getOrNull()
+                        val config = remember(program.intervalConfigJson) {
+                            runCatching { json.decodeFromString<IntervalConfig>(program.intervalConfigJson) }.getOrNull()
+                        }
                         ProgramChip(
                             program = program,
                             config = config,

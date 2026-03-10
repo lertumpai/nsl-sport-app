@@ -17,7 +17,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,10 +39,14 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
     val context = LocalContext.current
     val state by WearWorkoutService.state.collectAsState()
 
-    val paceColor = when {
-        !state.paceAlertEnabled || state.currentPaceSecsPerKm <= 0 -> Color.White
-        state.paceInRange -> Color(0xFF4CAF50)
-        else -> Color(0xFFFF5252)
+    val paceColor by remember {
+        derivedStateOf {
+            when {
+                !state.paceAlertEnabled || state.currentPaceSecsPerKm <= 0 -> Color.White
+                state.paceInRange -> Color(0xFF4CAF50)
+                else -> Color(0xFFFF5252)
+            }
+        }
     }
 
     Column(
