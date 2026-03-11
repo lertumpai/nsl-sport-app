@@ -25,6 +25,9 @@ interface WorkoutDao {
     @Query("DELETE FROM workouts WHERE id = :id")
     suspend fun deleteWorkout(id: Long)
 
+    @Query("SELECT COUNT(*) FROM workouts WHERE startTime = :startTime")
+    suspend fun countByStartTime(startTime: Long): Int
+
     @Query("SELECT COUNT(*) FROM workouts")
     suspend fun getTotalWorkoutCount(): Int
 

@@ -55,6 +55,14 @@
                     android:host="*"
                     android:scheme="wear" />
             </intent-filter>
+            <!-- Receives workout DataItems pushed by the watch via DataClient -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/sync"
+                    android:scheme="wear" />
+            </intent-filter>
         </service>
 
     </application>

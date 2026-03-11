@@ -1,10 +1,13 @@
 package com.nsl.sportapp.wear.ui
 
+import android.app.Activity
 import android.content.Intent
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,9 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -39,6 +47,16 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
     val context = LocalContext.current
     val state by WearWorkoutService.state.collectAsState()
 
+    // Keep the screen fully on during the workout so the app doesn't close
+    // when the wrist is lowered and raised again.
+    val activity = context as? Activity
+    DisposableEffect(Unit) {
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     val paceColor by remember {
         derivedStateOf {
             when {
@@ -46,6 +64,14 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
                 state.paceInRange -> Color(0xFF4CAF50)
                 else -> Color(0xFFFF5252)
             }
+        }
+    }
+
+    // Auto-scroll the splits row to the latest split whenever a new km is completed
+    val splitsListState = rememberLazyListState()
+    LaunchedEffect(state.kmSplits.size) {
+        if (state.kmSplits.isNotEmpty()) {
+            splitsListState.animateScrollToItem(state.kmSplits.size - 1)
         }
     }
 
@@ -143,7 +169,31 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
                 )
             }
         } else {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
+        }
+
+        // ── Km splits row + average split pace ──────────────────────────
+        if (state.kmSplits.isNotEmpty()) {
+            LazyRow(
+                state = splitsListState,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) {
+                items(state.kmSplits) { split ->
+                    KmSplitBadge(split)
+                }
+            }
+            // Average pace of completed km splits
+            val avgSplitPace = state.kmSplits.map { it.paceSecsPerKm }.average().toFloat()
+            Text(
+                text = "เฉลี่ย ${formatPace(avgSplitPace)}/km",
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.55f),
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Spacer(Modifier.height(16.dp))
         }
 
         // ── Interval info ────────────────────────────────────────────────
@@ -203,6 +253,30 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
             ) {
                 Text("■", fontSize = 14.sp)
             }
+        }
+    }
+}
+
+/** Compact badge showing the pace for a single completed km. */
+@Composable
+private fun KmSplitBadge(split: WearWorkoutService.KmSplit) {
+    Box(
+        modifier = Modifier
+            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 3.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "${split.km}km",
+                fontSize = 8.sp,
+                color = Color.White.copy(alpha = 0.6f)
+            )
+            Text(
+                text = formatPace(split.paceSecsPerKm),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
     }
 }

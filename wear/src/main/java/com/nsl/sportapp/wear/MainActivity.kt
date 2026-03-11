@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import androidx.wear.compose.material.MaterialTheme
 import com.nsl.sportapp.data.model.IntervalConfig
+import com.nsl.sportapp.wear.data.db.entity.WearWorkoutEntity
 import com.nsl.sportapp.wear.data.repository.WearWorkoutRepository
 import com.nsl.sportapp.wear.service.WearWorkoutService
 import com.nsl.sportapp.wear.ui.ActiveWearWorkoutScreen
@@ -25,6 +26,7 @@ import com.nsl.sportapp.wear.ui.WearHistoryScreen
 import com.nsl.sportapp.wear.ui.WearIntervalSetupScreen
 import com.nsl.sportapp.wear.ui.WearPaceSetupScreen
 import com.nsl.sportapp.wear.ui.WearProgramListScreen
+import com.nsl.sportapp.wear.ui.WearWorkoutDetailScreen
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -55,12 +57,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class WearScreen { MAIN, PACE_SETUP, ACTIVE, HISTORY, PROGRAMS, INTERVAL_SETUP }
+private enum class WearScreen { MAIN, PACE_SETUP, ACTIVE, HISTORY, HISTORY_DETAIL, PROGRAMS, INTERVAL_SETUP }
 
 @Composable
 fun WearApp() {
     val state by WearWorkoutService.state.collectAsState()
     var screen by remember { mutableStateOf(WearScreen.MAIN) }
+    var selectedWorkout by remember { mutableStateOf<WearWorkoutEntity?>(null) }
     val context = LocalContext.current
     val repository = remember { WearWorkoutRepository(context) }
     val scope = rememberCoroutineScope()
@@ -85,7 +88,22 @@ fun WearApp() {
 
         WearScreen.ACTIVE -> ActiveWearWorkoutScreen(onWorkoutStopped = { screen = WearScreen.MAIN })
 
-        WearScreen.HISTORY -> WearHistoryScreen(onBack = { screen = WearScreen.MAIN })
+        WearScreen.HISTORY -> WearHistoryScreen(
+            onBack = { screen = WearScreen.MAIN },
+            onWorkoutClick = { workout ->
+                selectedWorkout = workout
+                screen = WearScreen.HISTORY_DETAIL
+            }
+        )
+
+        WearScreen.HISTORY_DETAIL -> {
+            val workout = selectedWorkout
+            if (workout != null) {
+                WearWorkoutDetailScreen(workout = workout, onBack = { screen = WearScreen.HISTORY })
+            } else {
+                screen = WearScreen.HISTORY
+            }
+        }
 
         WearScreen.PROGRAMS -> WearProgramListScreen(
             repository = repository,

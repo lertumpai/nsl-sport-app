@@ -1,5 +1,6 @@
 package com.nsl.sportapp.wear.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -16,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +38,7 @@ import com.nsl.sportapp.wear.datalayer.WearSyncHelper
 import kotlinx.coroutines.launch
 
 @Composable
-fun WearHistoryScreen(onBack: () -> Unit) {
+fun WearHistoryScreen(onBack: () -> Unit, onWorkoutClick: (WearWorkoutEntity) -> Unit = {}) {
     val context = LocalContext.current
     val repository = remember { WearWorkoutRepository(context) }
     val workouts by repository.allWorkouts.collectAsState(initial = emptyList())
@@ -74,7 +77,10 @@ fun WearHistoryScreen(onBack: () -> Unit) {
             } else {
                 workouts.forEach { workout ->
                     item(key = workout.id) {
-                        WearWorkoutCard(workout)
+                        WearWorkoutCard(
+                            workout = workout,
+                            onClick = { onWorkoutClick(workout) }
+                        )
                     }
                 }
             }
@@ -125,11 +131,13 @@ fun WearHistoryScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun WearWorkoutCard(workout: WearWorkoutEntity) {
+private fun WearWorkoutCard(workout: WearWorkoutEntity, onClick: () -> Unit) {
     androidx.compose.foundation.layout.Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -163,8 +171,25 @@ private fun WearWorkoutCard(workout: WearWorkoutEntity) {
                 color = MaterialTheme.colors.onSurface
             )
         }
-        if (workout.avgHeartRate > 0) {
-            Text("❤ ${workout.avgHeartRate} bpm", fontSize = 10.sp, color = Color.Red)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (workout.avgPaceSecsPerKm > 0) {
+                Text(
+                    formatPace(workout.avgPaceSecsPerKm) + "/km",
+                    fontSize = 10.sp,
+                    color = Color(0xFF4CAF50)
+                )
+            }
+            if (workout.avgHeartRate > 0) {
+                Text("❤ ${workout.avgHeartRate} bpm", fontSize = 10.sp, color = Color(0xFFFF5252))
+            }
         }
+        Text(
+            "แตะเพื่อดูรายละเอียด →",
+            fontSize = 8.sp,
+            color = Color.White.copy(alpha = 0.3f)
+        )
     }
 }

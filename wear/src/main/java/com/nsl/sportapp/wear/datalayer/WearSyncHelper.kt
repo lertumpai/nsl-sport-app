@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.google.android.gms.wearable.DataMapItem
+import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.nsl.sportapp.wear.data.db.entity.WearTrainingProgramEntity
 import com.nsl.sportapp.wear.data.db.entity.WearWorkoutEntity
@@ -15,8 +16,9 @@ import org.json.JSONArray
 /**
  * Handles sync between the watch and the phone.
  *
- * Workouts (Watch → Phone): MessageClient, with GPS segment downsampling to stay
- * under the 100 KB per-message limit.
+ * Workouts (Watch → Phone): DataClient, using persistent DataItems so workouts are delivered
+ * even when the phone was out of Bluetooth range during the workout. GMS queues the DataItem
+ * and delivers it automatically when the devices reconnect.
  *
  * Programs (Phone → Watch): DataClient. The phone writes programs as a DataItem that
  * persists and is automatically delivered when devices reconnect — no manual request needed.
@@ -24,12 +26,14 @@ import org.json.JSONArray
 object WearSyncHelper {
 
     private const val TAG = "WearSyncHelper"
-    const val PATH_SYNC_WORKOUT = "/sync/workout"
+
+    /** DataClient path for watch→phone workout sync. Each workout gets its own path. */
+    const val PATH_SYNC_WORKOUT_PREFIX = "/sync/workout/"
 
     /** DataClient path written by the phone. Watch reads it here or via onDataChanged(). */
     const val DATA_PATH_PROGRAMS = "/data/programs"
 
-    /** Keep segments under MessageClient's 100 KB limit (~100 bytes/point). */
+    /** Keep segments under DataClient's ~100 KB DataItem limit (~100 bytes/point). */
     private const val MAX_SEGMENTS = 400
 
     // ─── Programs (DataClient) ─────────────────────────────────────────────────
@@ -81,37 +85,49 @@ object WearSyncHelper {
         }
     }
 
-    // ─── Workouts (MessageClient) ──────────────────────────────────────────────
+    // ─── Workouts (DataClient) ─────────────────────────────────────────────────
 
     /**
-     * Sends each unsynced workout to the phone via MessageClient.
-     * Skips (and retries next time) any workout whose payload send fails.
-     * Returns the count of workouts successfully synced.
+     * Sends each unsynced workout to the phone via DataClient DataItems.
+     *
+     * Unlike MessageClient, DataClient persists the data and guarantees delivery
+     * even if the phone is currently out of Bluetooth range — GMS will deliver
+     * the DataItem automatically when the devices reconnect.
+     *
+     * Each workout is written to its own path "/sync/workout/{workoutId}" so
+     * multiple unsynced workouts can coexist without overwriting each other.
+     * The phone deletes each DataItem after saving it, which also acts as an
+     * implicit acknowledgment.
+     *
+     * Returns the count of workouts successfully queued for sync.
      */
     suspend fun syncWorkoutsToPhone(context: Context): Int {
         return try {
-            val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-            val nodeId = nodes.firstOrNull()?.id ?: return 0
-
             val repository = WearWorkoutRepository(context)
             val unsynced = repository.getUnsyncedWorkouts()
             if (unsynced.isEmpty()) return 0
 
-            val messageClient = Wearable.getMessageClient(context)
+            val dataClient = Wearable.getDataClient(context)
             var count = 0
             for (workout in unsynced) {
                 try {
                     val segments = repository.getSegments(workout.id)
                     val payload = buildSyncPayload(workout, segments)
-                    val bytes = payload.toByteArray()
-                    Log.d(TAG, "Sending workout ${workout.id}: ${bytes.size} bytes (${segments.size} → ${minOf(segments.size, MAX_SEGMENTS)} segments)")
-                    messageClient.sendMessage(nodeId, PATH_SYNC_WORKOUT, bytes).await()
+                    val path = "$PATH_SYNC_WORKOUT_PREFIX${workout.id}"
+                    val request = PutDataMapRequest.create(path).apply {
+                        dataMap.putString("workoutJson", payload)
+                        // Bump timestamp so GMS treats it as changed on each retry attempt
+                        dataMap.putLong("ts", System.currentTimeMillis())
+                    }.asPutDataRequest().setUrgent()
+
+                    dataClient.putDataItem(request).await()
+                    // Mark synced after successful DataItem write — GMS guarantees delivery
                     repository.markSynced(workout.id)
                     count++
-                    Log.d(TAG, "Synced workout ${workout.id} to phone")
+                    Log.d(TAG, "DataClient queued workout ${workout.id} (${payload.length} bytes, path=$path)")
                 } catch (e: Exception) {
-                    // Don't mark as synced — will retry on next sync
-                    Log.w(TAG, "Failed to sync workout ${workout.id}: ${e.message}")
+                    // Don't mark as synced — will retry on next sync attempt
+                    Log.w(TAG, "Failed to queue workout ${workout.id}: ${e.message}")
                 }
             }
             count
@@ -125,7 +141,7 @@ object WearSyncHelper {
         workout: WearWorkoutEntity,
         segments: List<WearWorkoutSegmentEntity>
     ): String {
-        // Downsample to MAX_SEGMENTS so payload stays under MessageClient's 100 KB limit
+        // Downsample to MAX_SEGMENTS so payload stays under DataClient's ~100 KB DataItem limit
         val sampled = if (segments.size <= MAX_SEGMENTS) {
             segments
         } else {
