@@ -87,6 +87,13 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         val isActive: Boolean get() = _state.value.isRunning
     }
 
+    /** Pace recorded for a completed 1 km split. */
+    data class KmSplit(
+        val km: Int,               // Which km (1 = first km, 2 = second km, …)
+        val paceSecsPerKm: Float,  // Pace for this km segment
+        val splitTimeMillis: Long  // Total elapsed time when the km was completed
+    )
+
     data class WorkoutState(
         val isRunning: Boolean = false,
         val isPaused: Boolean = false,
@@ -108,7 +115,9 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         val currentRepetition: Int = 1,
         val activityDistanceStart: Float = 0f,
         // Bluetooth connection
-        val phoneConnected: Boolean = false
+        val phoneConnected: Boolean = false,
+        // Km splits (pace recorded each time 1 km is completed)
+        val kmSplits: List<KmSplit> = emptyList()
     )
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -128,6 +137,11 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
 
     private val locationHistory = ArrayDeque<Pair<Long, Float>>(30)
     private val segmentBuffer = mutableListOf<WearWorkoutSegmentEntity>()
+
+    // Km split tracking
+    private var lastSplitKm: Int = 0
+    private var lastSplitElapsedMillis: Long = 0L
+    private var lastSplitDistanceMeters: Float = 0f
 
     private val passiveListenerCallback = object : PassiveListenerCallback {
         override fun onNewDataPointsReceived(dataPoints: DataPointContainer) {
@@ -182,6 +196,11 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
         lastLocation = null
         lastMovementTime = System.currentTimeMillis()
         gpsFixCount = 0
+
+        // Reset km split tracking
+        lastSplitKm = 0
+        lastSplitElapsedMillis = 0L
+        lastSplitDistanceMeters = 0f
 
         // Determine pace from config if provided
         val effectiveMin = if (config != null) config.minPaceSecsPerKm else minPace
@@ -361,6 +380,7 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
             gpsActive = true
         )
         updatedState = checkIntervalTransition(updatedState, newTotal)
+        updatedState = checkKmSplits(updatedState, newTotal)
         _state.value = updatedState
 
         segmentBuffer.add(
@@ -374,6 +394,37 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
                 heartRate = _state.value.heartRate
             )
         )
+    }
+
+    /**
+     * Detects 1 km boundary crossings and records split pace for each completed km.
+     * Uses the current elapsed time to calculate how long the km segment took.
+     */
+    private fun checkKmSplits(state: WorkoutState, totalDistance: Float): WorkoutState {
+        val completedKm = (totalDistance / 1000).toInt()
+        if (completedKm <= lastSplitKm) return state
+
+        val elapsedMs = state.elapsedMillis
+        val splitTimeMs = elapsedMs - lastSplitElapsedMillis
+        val splitDistanceM = totalDistance - lastSplitDistanceMeters
+        val splitPace = if (splitDistanceM > 0 && splitTimeMs > 0)
+            (splitTimeMs / 1000f) / (splitDistanceM / 1000f)
+        else 0f
+
+        val newSplit = KmSplit(
+            km = completedKm,
+            paceSecsPerKm = splitPace,
+            splitTimeMillis = elapsedMs
+        )
+
+        lastSplitKm = completedKm
+        lastSplitElapsedMillis = elapsedMs
+        lastSplitDistanceMeters = totalDistance
+
+        // Short vibration to notify km completion
+        vibrate(longArrayOf(0, 80, 60, 80))
+
+        return state.copy(kmSplits = state.kmSplits + newSplit)
     }
 
     private fun checkIntervalTransition(state: WorkoutState, totalDistance: Float): WorkoutState {
@@ -465,7 +516,7 @@ class WearWorkoutService : LifecycleService(), MessageClient.OnMessageReceivedLi
     private suspend fun triggerSyncToPhone() {
         try {
             val count = WearSyncHelper.syncWorkoutsToPhone(this@WearWorkoutService)
-            if (count > 0) Log.d(TAG, "triggerSyncToPhone: synced $count workout(s)")
+            if (count > 0) Log.d(TAG, "triggerSyncToPhone: queued $count workout(s) via DataClient")
         } catch (e: Exception) {
             Log.w(TAG, "Sync failed: ${e.message}")
         }
