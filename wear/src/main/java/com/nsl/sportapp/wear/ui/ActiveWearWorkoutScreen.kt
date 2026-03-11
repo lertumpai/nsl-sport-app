@@ -172,7 +172,7 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
             Spacer(Modifier.height(2.dp))
         }
 
-        // ── Km splits row ────────────────────────────────────────────────
+        // ── Km splits row + average split pace ──────────────────────────
         if (state.kmSplits.isNotEmpty()) {
             LazyRow(
                 state = splitsListState,
@@ -184,6 +184,14 @@ fun ActiveWearWorkoutScreen(onWorkoutStopped: () -> Unit) {
                     KmSplitBadge(split)
                 }
             }
+            // Average pace of completed km splits
+            val avgSplitPace = state.kmSplits.map { it.paceSecsPerKm }.average().toFloat()
+            Text(
+                text = "เฉลี่ย ${formatPace(avgSplitPace)}/km",
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.55f),
+                textAlign = TextAlign.Center
+            )
         } else {
             Spacer(Modifier.height(16.dp))
         }
